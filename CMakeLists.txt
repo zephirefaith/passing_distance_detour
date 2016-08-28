@@ -4,7 +4,10 @@ project(user_study_passing_distance)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED
+        geometry_msgs
+        roscpp
+    )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -121,16 +124,16 @@ catkin_package(
 # add_dependencies(user_study_passing_distance ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-# add_executable(user_study_passing_distance_node src/user_study_passing_distance_node.cpp)
+add_executable(detour_mild_node src/detour_mild.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(user_study_passing_distance_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(user_study_passing_distance_node
-#   ${catkin_LIBRARIES}
-# )
+ target_link_libraries(detour_mild_node
+   ${catkin_LIBRARIES}
+ )
 
 #############
 ## Install ##
