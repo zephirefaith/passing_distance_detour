@@ -28,7 +28,7 @@ class PersonRobotTracker{
         ros::Time person_time_stamp;
 
         PersonRobotTracker(){
-            person_to_robot_distance = 0.0;
+            person_to_robot_distance = -1.0;
             person_time_stamp = ros::Time();
         }
 
@@ -73,22 +73,25 @@ int main(int argc, char **argv){
     ROS_INFO("Client connected!");
 
     move_base_msgs::MoveBaseGoal jeeves_goal;
-    goal.target_pose.header.frame_id = "map";
-    goal.target_pose.header.stamp = ros::Time::now();
-    goal.target_pose.pose.position.x = -5.90;
-    goal.target_pose.pose.position.y = 3.00;
-    goal.target_pose.pose.orientation = tracker.get_orientation();
+    jeeves_goal.target_pose.header.frame_id = "map";
+    jeeves_goal.target_pose.header.stamp = ros::Time::now();
+    jeeves_goal.target_pose.pose.position.x = -3.00;
+    jeeves_goal.target_pose.pose.position.y = 3.2;
+    jeeves_goal.target_pose.pose.orientation.x = 0.0;
+    jeeves_goal.target_pose.pose.orientation.y = 0.0;
+    jeeves_goal.target_pose.pose.orientation.z = 0.99;
+    jeeves_goal.target_pose.pose.orientation.w = 0.1;
 
     //send the goal and add a feedback callback
-    ac.sendGoal(goal);
-    ROS_INFO("Chasing waypoint: %f, %f", goal.target_pose.pose.position.x, goal.target_pose.pose.position.y);
+    ac.sendGoal(jeeves_goal);
+    ROS_INFO("Chasing waypoint: %f, %f", jeeves_goal.target_pose.pose.position.x, jeeves_goal.target_pose.pose.position.y);
 
     while( ros::ok() ){
         if( !tracker.person_time_stamp.is_zero() ){
             ros::Duration time_elapsed = ros::Time::now() - tracker.person_time_stamp;
             ROS_INFO("Time elapsed since last sighting of a person: %f", time_elapsed.toSec());
         }
-        if(tracker.person_to_robot_distance < 4.0){
+        if( ( tracker.person_to_robot_distance < 4.0 ) && ( tracker.person_to_robot_distance > 0.0 ) ){
             ac.cancelGoal();
             ROS_INFO("Stopping because the person is too close!");
         }
