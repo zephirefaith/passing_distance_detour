@@ -7,6 +7,8 @@ project(user_study_passing_distance)
 find_package(catkin REQUIRED
         geometry_msgs
         roscpp
+        actionlib
+        move_base_msgs
     )
 
 ## System dependencies are found with CMake's conventions
