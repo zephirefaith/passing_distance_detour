@@ -9,6 +9,7 @@ find_package(catkin REQUIRED
         roscpp
         actionlib
         move_base_msgs
+        std_msgs
     )
 
 ## System dependencies are found with CMake's conventions
@@ -126,14 +127,22 @@ catkin_package(
 # add_dependencies(user_study_passing_distance ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-add_executable(detour_mild_node src/detour_mild.cpp)
+add_executable(fsm_control src/fsm_control.cpp)
+add_executable(detour_mild src/detour_mild.cpp)
+add_executable(detour_hard src/detour_hard.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(user_study_passing_distance_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(detour_mild_node
+ target_link_libraries(fsm_control
+   ${catkin_LIBRARIES}
+ )
+ target_link_libraries(detour_mild
+   ${catkin_LIBRARIES}
+ )
+ target_link_libraries(detour_hard
    ${catkin_LIBRARIES}
  )
 

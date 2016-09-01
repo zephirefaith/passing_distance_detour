@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="user_study_passing_distance" type="fsm_control" name="fsm_control" output="screen"/>
+    <node pkg="user_study_passing_distance" type="detour_hard" name="detour_hard" output="screen"/>
+</launch>

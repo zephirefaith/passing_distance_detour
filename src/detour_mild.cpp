@@ -10,91 +10,85 @@
 //ros headers
 #include <ros/ros.h>
 #include <ros/console.h>
-#include <actionlib/client/simple_action_client.h>
+#include <tf/transform_listener.h>
 
 //ros messages
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <geometry_msgs/Quaternion.h>
-#include <move_base_msgs/MoveBaseAction.h>
+#include <geometry_msgs/Twist.h>
+#include <std_msgs/Bool.h>
 
-//typedefs
-typedef actionlib::SimpleActionClient <move_base_msgs::MoveBaseAction> MoveBaseClient;
+bool detour_flag = false;
+geometry_msgs::PoseWithCovarianceStamped robot_pose;
+float start_heading = 0.0;
+float observed_lateral_distance = 0.0;
 
-class PersonRobotTracker{
-    
-    public:
-        float person_to_robot_distance;
-        ros::Time person_time_stamp;
+void DetourCB( const std_msgs::Bool::ConstPtr &msg){
+    if ( msg->data ){
+        start_heading = tf::getYaw(robot_pose.pose.pose.orientation);
+        detour_flag = true;
+    } else {
+        detour_flag = false;
+    }
+}
 
-        PersonRobotTracker(){
-            person_to_robot_distance = -1.0;
-            person_time_stamp = ros::Time();
-        }
+void UpdatePositionCB ( const geometry_msgs::PoseWithCovarianceStampedConstPtr &msg){
+    robot_pose = *msg;
+}
 
-        void GetDist2PersonCB( const geometry_msgs::PoseStampedConstPtr &msg ){
-            geometry_msgs::PoseStamped person_pose = *msg;
-            person_to_robot_distance = (float) sqrt( ( robot_pose_x_ - person_pose.pose.position.x )*( robot_pose_x_ - person_pose.pose.position.x ) + ( robot_pose_y_ - person_pose.pose.position.y )*( robot_pose_y_ - person_pose.pose.position.y ) );
-            person_time_stamp = person_pose.header.stamp;
-            ROS_INFO("Distance from person: %f m", person_to_robot_distance);
-        }
-        
-        void UpdateSelfPositionCB( const geometry_msgs::PoseWithCovarianceStampedConstPtr &msg ){
-            robot_pose_x_ = msg->pose.pose.position.x; 
-            robot_pose_y_ = msg->pose.pose.position.y; 
-            robot_orientation_ = msg->pose.pose.orientation;
-        }
-
-        geometry_msgs::Quaternion get_orientation(){ return robot_orientation_; }
-
-    private:
-        float robot_pose_x_;
-        float robot_pose_y_;
-        geometry_msgs::Quaternion robot_orientation_;
-};
+void UpdateDistanceCB ( const geometry_msgs::PoseStampedConstPtr &msg){
+    observed_lateral_distance = abs( robot_pose.pose.pose.position.y - msg->pose.position.y );
+}
 
 int main(int argc, char **argv){
 
     ros::init(argc, argv, "detour_mild");
     ros::NodeHandle nh;
-    ros::Rate loop_rate(10);
-    MoveBaseClient ac("move_base", true);
-    PersonRobotTracker tracker;
+    ros::Rate loop_rate(35);
+    ros::Time start_time;
+    int fsm_state = 0;
 
-    ros::Subscriber closest_person_sub = nh.subscribe("people_tracker/pose", 1000, &PersonRobotTracker::GetDist2PersonCB, &tracker);
-    ros::Subscriber robot_position_sub = nh.subscribe("amcl_pose", 1000, &PersonRobotTracker::UpdateSelfPositionCB, &tracker);
+    ros::Subscriber detour_signal_sub = nh.subscribe("detour_signal", 1000, DetourCB);
+    ros::Subscriber robot_position_sub = nh.subscribe("amcl_pose", 1000, UpdatePositionCB);
+    ros::Subscriber person_position_sub = nh.subscribe("people_tracker/pose", 1000, UpdateDistanceCB);
+
+    ros::Publisher twist_velocity_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel",1000);
+
+    geometry_msgs::Twist velocity;
+    float desired_lateral_distance = 2; //metres
     
-    //wait for the action server to come up
-    ROS_INFO("Waiting for the move_base action server to come up");
-    while ( !ac.waitForServer(ros::Duration(5.0)) && ros::ok()) {
-        ROS_INFO("...");
-        ros::spinOnce();
-    }
-    ROS_INFO("Client connected!");
-
-    move_base_msgs::MoveBaseGoal jeeves_goal;
-    jeeves_goal.target_pose.header.frame_id = "map";
-    jeeves_goal.target_pose.header.stamp = ros::Time::now();
-    jeeves_goal.target_pose.pose.position.x = -3.00;
-    jeeves_goal.target_pose.pose.position.y = 3.2;
-    jeeves_goal.target_pose.pose.orientation.x = 0.0;
-    jeeves_goal.target_pose.pose.orientation.y = 0.0;
-    jeeves_goal.target_pose.pose.orientation.z = 0.99;
-    jeeves_goal.target_pose.pose.orientation.w = 0.1;
-
-    //send the goal and add a feedback callback
-    ac.sendGoal(jeeves_goal);
-    ROS_INFO("Chasing waypoint: %f, %f", jeeves_goal.target_pose.pose.position.x, jeeves_goal.target_pose.pose.position.y);
-
     while( ros::ok() ){
-        if( !tracker.person_time_stamp.is_zero() ){
-            ros::Duration time_elapsed = ros::Time::now() - tracker.person_time_stamp;
-            ROS_INFO("Time elapsed since last sighting of a person: %f", time_elapsed.toSec());
+
+        if( detour_flag ){
+            if( fsm_state == 0 ){
+                start_time = ros::Time::now();
+                velocity.linear.x = 0.6;
+                velocity.angular.z = 0.7;
+                ROS_INFO("moving out of the way routine");
+                fsm_state = 1;
+            }
+            if ( ( fsm_state == 1) && ( ros::Time::now() - start_time >= ros::Duration( 2 ) ) ){
+                fsm_state = 2;
+                start_time = ros::Time::now();
+                velocity.angular.z = 0.0;
+            }
+            if ( ( fsm_state == 2) && ( ros::Time::now() - start_time >= ros::Duration( 1 ) ) ){
+                fsm_state = 3;
+                start_time = ros::Time::now();
+                velocity.angular.z = -1.2;
+                velocity.linear.x = 0.4;
+            }
+            if ( ( fsm_state == 3 ) && ( ros::Time::now() - start_time >= ros::Duration( 1.1 ) ) ){
+                    velocity.angular.z = 0.0;
+                    velocity.linear.z = 0.45;
+                    fsm_state = 4;
+                    start_time = ros::Time::now();
+                ROS_INFO("walking straight routine");
+            }
+            
+            twist_velocity_pub.publish(velocity);
         }
-        if( ( tracker.person_to_robot_distance < 4.0 ) && ( tracker.person_to_robot_distance > 0.0 ) ){
-            ac.cancelGoal();
-            ROS_INFO("Stopping because the person is too close!");
-        }
+
         loop_rate.sleep();
         ros::spinOnce();
     }
